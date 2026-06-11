@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(cd \"C:\\\\Users\\\\aarav\\\\OneDrive\\\\Desktop\\\\Varco-Call_Centre\\\\backend\" && node src/index.js 2>&1 &)",
+      "PowerShell(netstat *)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://localhost:5000/api/auth/login\" -Method POST -ContentType \"application/json\" -Body '{\"email\":\"manager@varco.in\",\"password\":\"Manager@123\"}' | ConvertTo-Json -Depth 3)"
+    ]
+  }
+}
