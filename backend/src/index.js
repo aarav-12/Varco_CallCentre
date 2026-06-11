@@ -18,8 +18,17 @@ app.use(helmet());
 app.use(compression());
 
 // CORS
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:5173',
+  'http://localhost:3000',
+].filter(Boolean).map(o => o.replace(/\/$/, ''));
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -45,6 +54,11 @@ app.use('/api/', rateLimit({
 
 // Trust proxy for accurate IP
 app.set('trust proxy', 1);
+
+app.use((req, res, next) => {
+  console.log(req.method, req.originalUrl);
+  next();
+});
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
