@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Papa from 'papaparse';
+import XLSX from 'xlsx';
 import api from '../../services/api';
 import Badge, { statusBadge } from '../../components/UI/Badge';
 import Spinner from '../../components/UI/Spinner';
@@ -31,6 +32,13 @@ export default function LeadsPage() {
   const navigate = useNavigate();
   const { isManager } = useAuth();
   const [searchParams] = useSearchParams();
+
+  const buildImportPreview = (rows) => {
+    const headers = Object.keys(rows[0] || {});
+    const nameCol = headers.find(h => /name/i.test(h)) || headers[0] || '';
+    const phoneCol = headers.find(h => /phone|mobile|number|contact/i.test(h)) || headers[1] || '';
+    setImportPreview({ headers, rows: rows.slice(0, 5), nameCol, phoneCol, allRows: rows });
+  };
 
   useEffect(() => {
     const s = searchParams.get('search');
@@ -83,15 +91,47 @@ export default function LeadsPage() {
     if (!file) return;
     setImportFile(file);
     setImportPreview(null);
+
+    const extension = file.name.split('.').pop()?.toLowerCase();
+
+    if (extension === 'xlsx' || extension === 'xls') {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const workbook = XLSX.read(reader.result, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          if (!firstSheetName) {
+            toast.error('Excel file has no sheets');
+            return;
+          }
+
+          const worksheet = workbook.Sheets[firstSheetName];
+          const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+          if (!rows.length) {
+            toast.error('Excel file is empty');
+            return;
+          }
+
+          buildImportPreview(rows);
+        } catch {
+          toast.error('Could not parse Excel file');
+        }
+      };
+      reader.onerror = () => toast.error('Could not read file');
+      reader.readAsArrayBuffer(file);
+      return;
+    }
+
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
       complete: (results) => {
-        const headers = results.meta.fields || [];
-        const rows = results.data.slice(0, 5);
-        const nameCol = headers.find(h => /name/i.test(h)) || headers[0] || '';
-        const phoneCol = headers.find(h => /phone|mobile|number|contact/i.test(h)) || headers[1] || '';
-        setImportPreview({ headers, rows, nameCol, phoneCol, allRows: results.data });
+        const rows = results.data || [];
+        if (!rows.length) {
+          toast.error('CSV file is empty');
+          return;
+        }
+        buildImportPreview(rows);
       },
       error: () => toast.error('Could not parse CSV file'),
     });
@@ -99,7 +139,7 @@ export default function LeadsPage() {
 
   const handleImport = async (e) => {
     e.preventDefault();
-    if (!importPreview) return toast.error('Select a CSV file first');
+    if (!importPreview) return toast.error('Select a CSV or Excel file first');
     const { nameCol, phoneCol, allRows } = importPreview;
     if (!nameCol || !phoneCol) return toast.error('Map the Name and Phone columns');
     setSubmitting(true);
@@ -354,8 +394,8 @@ export default function LeadsPage() {
       >
         <form id="import-form" onSubmit={handleImport} className="space-y-4">
           <div>
-            <label className="label">Select CSV File</label>
-            <input type="file" accept=".csv,.xlsx" onChange={handleFileChange} className="input-field" />
+            <label className="label">Select CSV or Excel File</label>
+            <input type="file" accept=".csv,.xls,.xlsx" onChange={handleFileChange} className="input-field" />
           </div>
 
           {importPreview && (
