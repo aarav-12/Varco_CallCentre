@@ -493,7 +493,59 @@ const importLeads = async (req, res) => {
   }
 };
 
+const importLeadsJson = async (req, res) => {
+  try {
+    const { leads: rows } = req.body;
+    if (!Array.isArray(rows) || !rows.length) {
+      return res.status(400).json({ error: 'No leads provided' });
+    }
+
+    let imported = 0;
+    let failed = 0;
+    const errors = [];
+
+    for (const record of rows) {
+      try {
+        const name = (record.name || '').trim();
+        const phone_number = (record.phone_number || '').trim();
+
+        if (!name || !phone_number) {
+          failed++;
+          errors.push(`Missing name or phone: ${JSON.stringify(record)}`);
+          continue;
+        }
+
+        let callerId = null;
+        try { callerId = await getNextRoundRobinCaller(); } catch (e) {}
+
+        await query(
+          `INSERT INTO leads (name, phone_number, source, assigned_to, status, notes, created_by)
+           VALUES ($1, $2, $3, $4, 'not_contacted', $5, $6)
+           ON CONFLICT DO NOTHING`,
+          [name, phone_number, record.source || '', callerId, record.notes || '', req.user.id]
+        );
+        imported++;
+      } catch (e) {
+        failed++;
+        errors.push(e.message);
+      }
+    }
+
+    await log({
+      userId: req.user.id,
+      action: 'LEADS_IMPORTED',
+      entityType: 'lead',
+      newValue: { imported, failed },
+      ipAddress: req.ip,
+    });
+
+    res.json({ message: `Import complete: ${imported} imported, ${failed} failed`, imported, failed, errors: errors.slice(0, 10) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 module.exports = {
   getLeads, getLeadById, createLead, updateLead, deleteLead,
-  bulkDelete, bulkReassign, addNote, exportLeads, importLeads
+  bulkDelete, bulkReassign, addNote, exportLeads, importLeads, importLeadsJson
 };

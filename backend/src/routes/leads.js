@@ -2,7 +2,7 @@ const router = require('express').Router();
 const multer = require('multer');
 const {
   getLeads, getLeadById, createLead, updateLead, deleteLead,
-  bulkDelete, bulkReassign, addNote, exportLeads, importLeads
+  bulkDelete, bulkReassign, addNote, exportLeads, importLeads, importLeadsJson
 } = require('../controllers/leadController');
 const { authenticate, requireManager } = require('../middleware/auth');
 
@@ -20,5 +20,6 @@ router.post('/bulk-reassign', requireManager, bulkReassign);
 router.delete('/:id', requireManager, deleteLead);
 router.post('/:id/notes', addNote);
 router.post('/import', requireManager, upload.single('file'), importLeads);
+router.post('/import-json', requireManager, importLeadsJson);
 
 module.exports = router;

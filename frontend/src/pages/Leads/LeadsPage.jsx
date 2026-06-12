@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import Papa from 'papaparse';
 import api from '../../services/api';
 import Badge, { statusBadge } from '../../components/UI/Badge';
 import Spinner from '../../components/UI/Spinner';
@@ -24,6 +25,8 @@ export default function LeadsPage() {
   const [filters, setFilters] = useState({ page: 1, limit: 20, search: '', status: '', assignedTo: '', source: '' });
   const [form, setForm] = useState({ name: '', phone_number: '', source: '', notes: '', assigned_to: '', assignment_type: 'manual' });
   const [importFile, setImportFile] = useState(null);
+  const [importPreview, setImportPreview] = useState(null); // { headers, rows, nameCol, phoneCol }
+
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
   const { isManager } = useAuth();
@@ -75,16 +78,41 @@ export default function LeadsPage() {
     }
   };
 
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImportFile(file);
+    setImportPreview(null);
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        const headers = results.meta.fields || [];
+        const rows = results.data.slice(0, 5);
+        const nameCol = headers.find(h => /name/i.test(h)) || headers[0] || '';
+        const phoneCol = headers.find(h => /phone|mobile|number|contact/i.test(h)) || headers[1] || '';
+        setImportPreview({ headers, rows, nameCol, phoneCol, allRows: results.data });
+      },
+      error: () => toast.error('Could not parse CSV file'),
+    });
+  };
+
   const handleImport = async (e) => {
     e.preventDefault();
-    if (!importFile) return toast.error('Select a CSV file');
+    if (!importPreview) return toast.error('Select a CSV file first');
+    const { nameCol, phoneCol, allRows } = importPreview;
+    if (!nameCol || !phoneCol) return toast.error('Map the Name and Phone columns');
     setSubmitting(true);
     try {
-      const fd = new FormData();
-      fd.append('file', importFile);
-      const { data } = await api.post('/leads/import', fd);
-      toast.success(`Imported ${data.imported} leads`);
+      const leads = allRows
+        .map(r => ({ name: r[nameCol], phone_number: r[phoneCol] }))
+        .filter(r => r.name && r.phone_number);
+      if (!leads.length) return toast.error('No valid rows found in file');
+      const { data } = await api.post('/leads/import-json', { leads });
+      toast.success(`Imported ${data.imported} leads${data.failed ? `, ${data.failed} skipped` : ''}`);
       setShowImport(false);
+      setImportFile(null);
+      setImportPreview(null);
       loadLeads();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Import failed');
@@ -314,24 +342,65 @@ export default function LeadsPage() {
       </Modal>
 
       {/* Import Modal */}
-      <Modal isOpen={showImport} onClose={() => setShowImport(false)} title="Import Leads from CSV"
+      <Modal isOpen={showImport} onClose={() => { setShowImport(false); setImportFile(null); setImportPreview(null); }} title="Import Leads from CSV" size="lg"
         footer={
           <>
-            <button onClick={() => setShowImport(false)} className="btn-secondary text-sm">Cancel</button>
-            <button form="import-form" type="submit" disabled={submitting} className="btn-primary text-sm">
-              {submitting ? 'Importing...' : 'Import'}
+            <button onClick={() => { setShowImport(false); setImportFile(null); setImportPreview(null); }} className="btn-secondary text-sm">Cancel</button>
+            <button form="import-form" type="submit" disabled={submitting || !importPreview} className="btn-primary text-sm">
+              {submitting ? 'Importing...' : `Import${importPreview ? ` ${importPreview.allRows.length} leads` : ''}`}
             </button>
           </>
         }
       >
         <form id="import-form" onSubmit={handleImport} className="space-y-4">
-          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-sm text-blue-700 dark:text-blue-300">
-            CSV must have columns: <strong>name</strong>, <strong>phone_number</strong>, and optionally: source, notes
-          </div>
           <div>
-            <label className="label">CSV File</label>
-            <input type="file" accept=".csv" onChange={e => setImportFile(e.target.files[0])} className="input-field" required />
+            <label className="label">Select CSV File</label>
+            <input type="file" accept=".csv,.xlsx" onChange={handleFileChange} className="input-field" />
           </div>
+
+          {importPreview && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Name column</label>
+                  <select className="input-field" value={importPreview.nameCol}
+                    onChange={e => setImportPreview(p => ({ ...p, nameCol: e.target.value }))}>
+                    {importPreview.headers.map(h => <option key={h} value={h}>{h}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Phone column</label>
+                  <select className="input-field" value={importPreview.phoneCol}
+                    onChange={e => setImportPreview(p => ({ ...p, phoneCol: e.target.value }))}>
+                    {importPreview.headers.map(h => <option key={h} value={h}>{h}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <p className="label mb-1">Preview (first 5 rows)</p>
+                <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 dark:bg-gray-800">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Name</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-400">Phone</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                      {importPreview.rows.map((r, i) => (
+                        <tr key={i}>
+                          <td className="px-3 py-2 text-gray-800 dark:text-gray-200">{r[importPreview.nameCol] || '—'}</td>
+                          <td className="px-3 py-2 text-gray-800 dark:text-gray-200">{r[importPreview.phoneCol] || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{importPreview.allRows.length} total rows found</p>
+              </div>
+            </>
+          )}
         </form>
       </Modal>
 
