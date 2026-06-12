@@ -12,11 +12,10 @@ const MANAGER = {
 };
 
 const CALLERS = [
-  { name: 'Priya Patel', email: 'priya@varco.in', password: 'Caller@123', role: 'caller' },
-  { name: 'Amit Kumar', email: 'amit@varco.in', password: 'Caller@123', role: 'caller' },
-  { name: 'Sneha Verma', email: 'sneha@varco.in', password: 'Caller@123', role: 'caller' },
-  { name: 'Rohit Singh', email: 'rohit@varco.in', password: 'Caller@123', role: 'caller' },
-  { name: 'Ananya Gupta', email: 'ananya@varco.in', password: 'Caller@123', role: 'caller' },
+  { name: 'Aishwarya Sureka', email: 'aishwarya@varco.in', password: 'aishwaryasureka@123', role: 'caller' },
+  { name: 'Sujatha Dammu', email: 'sujatha@varco.in', password: 'sujatha@1234', role: 'caller' },
+  { name: 'Sudipa Das', email: 'sudipa@varco.in', password: 'das@123', role: 'caller' },
+  { name: 'Priya Saha', email: 'priya@varco.in', password: 'priyasinha@123', role: 'caller' },
 ];
 
 const LEAD_SOURCES = ['Website', 'Facebook', 'Google Ads', 'Referral', 'Cold Call', 'Instagram', 'Email Campaign'];
@@ -192,8 +191,8 @@ async function seed() {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('📋 DEMO CREDENTIALS');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log(`👔 Manager:  manager@varco.in  /  Manager@123`);
-    CALLERS.forEach(c => console.log(`📞 Caller:   ${c.email}  /  Caller@123`));
+    console.log(`👔 Manager:   manager@varco.in      /  Manager@123`);
+    CALLERS.forEach(c => console.log(`📞 Caller:    ${c.email.padEnd(24)}  /  Caller@123`));
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
   } catch (err) {
