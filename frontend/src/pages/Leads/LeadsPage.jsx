@@ -82,7 +82,7 @@ export default function LeadsPage() {
     try {
       const fd = new FormData();
       fd.append('file', importFile);
-      const { data } = await api.post('/leads/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const { data } = await api.post('/leads/import', fd);
       toast.success(`Imported ${data.imported} leads`);
       setShowImport(false);
       loadLeads();
